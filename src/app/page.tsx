@@ -6,6 +6,11 @@ import { useProducts } from "@/hooks/useProducts";
 import { usePrices } from "@/hooks/usePrices";
 import { ProductModel } from "@/types/product";
 import { saveOrder } from "@/services/orderService";
+import {
+  RotateCcw, Search, X, SlidersHorizontal,
+  ShoppingCart, AlertTriangle, CheckCircle,
+  ClipboardList, Flame, Trophy, Star,
+} from "lucide-react";
 
 function calcPrice(total: number, p1: number, p2: number, p3: number) {
   if (total >= 3000) return total * p3;
@@ -23,7 +28,6 @@ export default function ProductOrderPage() {
   const [minLevel, setMinLevel] = useState<number | null>(null);
   const [maxLevel, setMaxLevel] = useState<number | null>(null);
   const [showFilter, setShowFilter] = useState(false);
-  // ✅ เพิ่มตรงนี้
   const [modal, setModal] = useState<{ title: string; message: string; items?: string[] } | null>(null);
 
   const filteredProducts = useMemo(() => {
@@ -83,7 +87,7 @@ export default function ProductOrderPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg)" }}>
 
-      {/* ── Navbar ── */}
+      {/* Navbar */}
       <nav style={{
         background: "var(--brown)", borderBottom: "3px solid var(--primary)",
         padding: "0 20px", height: "56px", display: "flex",
@@ -93,11 +97,13 @@ export default function ProductOrderPage() {
         <button onClick={() => setQuantities({})} title="รีเซ็ต" style={{
           background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
           color: "white", borderRadius: "8px", width: "36px", height: "36px",
-          cursor: "pointer", fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "center",
-        }}>↺</button>
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <RotateCcw size={16} />
+        </button>
 
         <span style={{ fontFamily: "Prompt, sans-serif", fontWeight: 600, fontSize: "17px", color: "white" }}>
-          🌾 สั่งซื้อสินค้า
+          สั่งซื้อสินค้า
         </span>
 
         <div style={{
@@ -109,7 +115,7 @@ export default function ProductOrderPage() {
         </div>
       </nav>
 
-      {/* ── Scrollable body ── */}
+      {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
 
         {/* Note */}
@@ -117,17 +123,19 @@ export default function ProductOrderPage() {
           background: "#fff8e6", border: "1px solid #fcd97a",
           borderLeft: "4px solid var(--warning)", borderRadius: "8px",
           padding: "9px 14px", marginBottom: "14px", fontSize: "13px", color: "#92600a",
+          display: "flex", alignItems: "center", gap: "8px",
         }}>
-          ⚠️ <strong>โน๊ต:</strong> จำนวนต้องไม่มีเศษ เช่น 20, 80, 250 &nbsp;|&nbsp; ขั้นต่ำ <strong>20 ชิ้น</strong>
+          <AlertTriangle size={15} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+          <span><strong>โน๊ต:</strong> จำนวนต้องไม่มีเศษ เช่น 20, 80, 250 &nbsp;|&nbsp; ขั้นต่ำ <strong>20 ชิ้น</strong></span>
         </div>
 
         {/* Search + Filter */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
           <div style={{ position: "relative", flex: 1 }}>
-            <span style={{
+            <Search size={15} style={{
               position: "absolute", left: "11px", top: "50%",
-              transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "14px",
-            }}>🔍</span>
+              transform: "translateY(-50%)", color: "var(--text-muted)",
+            }} />
             <input
               type="text" placeholder="ค้นหาสินค้า..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -145,8 +153,11 @@ export default function ProductOrderPage() {
               <button onClick={() => setSearchQuery("")} style={{
                 position: "absolute", right: "10px", top: "50%",
                 transform: "translateY(-50%)", background: "none",
-                border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "15px",
-              }}>✕</button>
+                border: "none", cursor: "pointer", color: "var(--text-muted)",
+                display: "flex", alignItems: "center",
+              }}>
+                <X size={15} />
+              </button>
             )}
           </div>
           <button onClick={() => setShowFilter(true)} style={{
@@ -157,8 +168,10 @@ export default function ProductOrderPage() {
             color: isFilterActive ? "var(--primary-dark)" : "var(--text-muted)",
             cursor: "pointer", fontSize: "13px", fontFamily: "Sarabun, sans-serif",
             fontWeight: isFilterActive ? 600 : 400, whiteSpace: "nowrap",
+            display: "flex", alignItems: "center", gap: "6px",
           }}>
-            ⚙ Level {isFilterActive ? `(${minLevel ?? "?"}-${maxLevel ?? "?"})` : ""}
+            <SlidersHorizontal size={14} />
+            Level {isFilterActive ? `(${minLevel ?? "?"}-${maxLevel ?? "?"})` : ""}
           </button>
         </div>
 
@@ -175,7 +188,7 @@ export default function ProductOrderPage() {
           </div>
         ) : filteredProducts.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: "var(--text-muted)" }}>
-            <div style={{ fontSize: "40px", marginBottom: "10px" }}>🔍</div>
+            <Search size={40} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
             <p style={{ fontSize: "14px" }}>
               {searchQuery ? `ไม่พบสินค้า "${searchQuery}"` : "ยังไม่มีสินค้า"}
             </p>
@@ -215,7 +228,11 @@ export default function ProductOrderPage() {
                           background: "var(--danger)", color: "white",
                           fontSize: "10px", fontWeight: 700,
                           padding: "1px 6px", borderRadius: "4px", flexShrink: 0,
-                        }}>ขายดี</span>
+                          display: "flex", alignItems: "center", gap: "3px",
+                        }}>
+                          <Star size={9} fill="white" strokeWidth={0} />
+                          ขายดี
+                        </span>
                       )}
                     </div>
                     <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>Lv.{product.level}</span>
@@ -244,7 +261,7 @@ export default function ProductOrderPage() {
         )}
       </div>
 
-      {/* ── Sticky Bottom Bar ── */}
+      {/* Sticky Bottom Bar */}
       <div style={{
         flexShrink: 0, background: "white", borderTop: "2px solid var(--border)",
         padding: "14px 20px", display: "flex", alignItems: "center",
@@ -256,16 +273,25 @@ export default function ProductOrderPage() {
           <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--brown)", fontFamily: "Prompt, sans-serif", lineHeight: 1.2 }}>
             ฿{fmtMoney(totalPrice)}
           </div>
-          <div style={{ fontSize: "11px", marginTop: "2px" }}>
+          <div style={{ fontSize: "11px", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
             {totalItems === 0 && <span style={{ color: "var(--text-muted)" }}>ยังไม่มีสินค้า</span>}
             {totalItems > 0 && totalItems < 1000 && (
-              <span style={{ color: "var(--warning)", fontWeight: 600 }}>🔥 อีก {fmt(1000 - totalItems)} ชิ้น รับราคาพิเศษ!</span>
+              <>
+                <Flame size={12} color="var(--warning)" />
+                <span style={{ color: "var(--warning)", fontWeight: 600 }}>อีก {fmt(1000 - totalItems)} ชิ้น รับราคาพิเศษ!</span>
+              </>
             )}
             {totalItems >= 1000 && totalItems < 3000 && (
-              <span style={{ color: "#2563eb", fontWeight: 600 }}>🔥 อีก {fmt(3000 - totalItems)} ชิ้น รับราคาดียิ่งขึ้น!</span>
+              <>
+                <Flame size={12} color="#2563eb" />
+                <span style={{ color: "#2563eb", fontWeight: 600 }}>อีก {fmt(3000 - totalItems)} ชิ้น รับราคาดียิ่งขึ้น!</span>
+              </>
             )}
             {totalItems >= 3000 && (
-              <span style={{ color: "var(--success)", fontWeight: 600 }}>🏆 ราคาขั้นสูงสุดแล้ว!</span>
+              <>
+                <Trophy size={12} color="var(--success)" />
+                <span style={{ color: "var(--success)", fontWeight: 600 }}>ราคาขั้นสูงสุดแล้ว!</span>
+              </>
             )}
           </div>
         </div>
@@ -276,17 +302,19 @@ export default function ProductOrderPage() {
             borderRadius: "10px", padding: "12px 28px", fontSize: "15px",
             fontWeight: 700, fontFamily: "Prompt, sans-serif", cursor: "pointer",
             boxShadow: "0 3px 10px rgba(61,43,26,0.3)", whiteSpace: "nowrap",
+            display: "flex", alignItems: "center", gap: "8px",
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-dark)"}
           onMouseLeave={(e) => e.currentTarget.style.background = "var(--brown)"}
           onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.97)"}
           onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
         >
-          📋 ยืนยันคำสั่งซื้อ
+          <ClipboardList size={16} />
+          ยืนยันคำสั่งซื้อ
         </button>
       </div>
 
-      {/* ✅ Alert Modal */}
+      {/* Alert Modal */}
       {modal && (
         <AlertModal
           title={modal.title}
@@ -309,7 +337,8 @@ export default function ProductOrderPage() {
   );
 }
 
-// ✅ Alert Modal Component
+// ── Alert Modal ───────────────────────────────────────────────────────────────
+
 function AlertModal({
   title, message, items, onClose,
 }: {
@@ -322,18 +351,15 @@ function AlertModal({
 
   return (
     <div onClick={onClose} style={{
-      position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.5)",
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 300, padding: "16px",
-      backdropFilter: "blur(4px)",
+      zIndex: 300, padding: "16px", backdropFilter: "blur(4px)",
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         background: "white", borderRadius: "20px",
         width: "100%", maxWidth: "380px",
         boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-        overflow: "hidden",
-        animation: "modalPop 0.2s ease-out",
+        overflow: "hidden", animation: "modalPop 0.2s ease-out",
       }}>
         <style>{`
           @keyframes modalPop {
@@ -346,16 +372,18 @@ function AlertModal({
         <div style={{
           background: isError ? "#fff5f5" : "#fff8e6",
           borderBottom: `2px solid ${isError ? "#fecaca" : "#fcd97a"}`,
-          padding: "24px 24px 20px",
-          textAlign: "center",
+          padding: "24px 24px 20px", textAlign: "center",
         }}>
           <div style={{
             width: "56px", height: "56px", borderRadius: "50%",
             background: isError ? "#fee2e2" : "#fef3c7",
             display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 12px", fontSize: "26px",
+            margin: "0 auto 12px",
           }}>
-            {isError ? "⚠️" : "🛒"}
+            {isError
+              ? <AlertTriangle size={26} color="#b91c1c" />
+              : <ShoppingCart size={26} color="#92600a" />
+            }
           </div>
           <h3 style={{
             fontFamily: "Prompt, sans-serif", fontSize: "18px",
@@ -387,7 +415,7 @@ function AlertModal({
                   borderBottom: i < items.length - 1 ? "1px solid #fee2e2" : "none",
                   fontSize: "13px", color: "#b91c1c", fontWeight: 500,
                 }}>
-                  <span style={{ flexShrink: 0 }}>•</span>
+                  <AlertTriangle size={12} strokeWidth={2.5} style={{ flexShrink: 0 }} />
                   <span>{item}</span>
                 </div>
               ))}
@@ -405,10 +433,12 @@ function AlertModal({
               color: "white", border: "none", borderRadius: "10px",
               fontSize: "15px", fontWeight: 700,
               fontFamily: "Prompt, sans-serif", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
             }}
             onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
             onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
           >
+            <CheckCircle size={16} />
             ตกลง
           </button>
         </div>
@@ -416,6 +446,8 @@ function AlertModal({
     </div>
   );
 }
+
+// ── Level Filter Modal ────────────────────────────────────────────────────────
 
 function LevelFilterModal({
   minLevel, maxLevel, onApply, onClose,
@@ -441,7 +473,11 @@ function LevelFilterModal({
         <h3 style={{
           fontFamily: "Prompt, sans-serif", color: "var(--brown)",
           fontSize: "17px", marginBottom: "20px",
-        }}>⚙ กรอง Level สินค้า</h3>
+          display: "flex", alignItems: "center", gap: "8px",
+        }}>
+          <SlidersHorizontal size={18} />
+          กรอง Level สินค้า
+        </h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
           {[
             { label: "Level ต่ำสุด", value: localMin, setter: setLocalMin, placeholder: "เช่น 1" },
@@ -477,7 +513,7 @@ function LevelFilterModal({
           <button
             onClick={() => onApply(
               localMin ? parseInt(localMin) : null,
-              localMax ? parseInt(localMax) : null
+              localMax ? parseInt(localMax) : null,
             )}
             style={{
               flex: 1, height: "42px", border: "none", borderRadius: "8px",

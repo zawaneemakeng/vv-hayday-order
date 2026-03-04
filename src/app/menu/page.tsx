@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { collection, query, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, getDocs, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useProducts } from "@/hooks/useProducts";
 import { usePrices } from "@/hooks/usePrices";
@@ -12,9 +12,36 @@ import {
     ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 type FilterKey = "today" | "yesterday" | "7" | "14" | "30" | "all";
 
-const FILTERS: { key: FilterKey; label: string }[] = [
+interface FilterOption {
+    key: FilterKey;
+    label: string;
+}
+
+interface MenuItem {
+    label: string;
+    icon: string;
+    path: string;
+}
+
+interface ChartItem {
+    id: string;
+    name: string;
+    qty: number;
+}
+
+// ✅ ตรงกับ Flutter OrderService — field ชื่อ "items" และ "created_at"
+interface OrderDoc {
+    items?: Record<string, number>;   // ← Flutter เขียน "items" ไม่ใช่ "quantities"
+    created_at?: Timestamp;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const FILTERS: FilterOption[] = [
     { key: "today", label: "วันนี้" },
     { key: "yesterday", label: "เมื่อวาน" },
     { key: "7", label: "7 วัน" },
@@ -23,13 +50,13 @@ const FILTERS: { key: FilterKey; label: string }[] = [
     { key: "all", label: "ทั้งหมด" },
 ];
 
-const BAR_COLORS = [
+const BAR_COLORS: string[] = [
     "#f59e0b", "#f97316", "#ef4444", "#d4a853",
     "#3b82f6", "#22c55e", "#a855f7", "#ec4899",
     "#06b6d4", "#14b8a6", "#6366f1", "#84cc16",
 ];
 
-const MENU_ITEMS = [
+const MENU_ITEMS: MenuItem[] = [
     { label: "ออเดอร์", icon: "📋", path: "/order-monitor" },
     { label: "รวดเร็ว", icon: "⚡", path: "/quick-copy-text" },
     { label: "เพิ่มสินค้า", icon: "➕", path: "/product-create" },
@@ -44,20 +71,58 @@ const MENU_ITEMS = [
     { label: "เลือกสินค้า", icon: "🛒", path: "/select-product" },
 ];
 
-function getDateRange(filter: FilterKey): Date | null {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function isInRange(createdAt: Date, filter: FilterKey): boolean {
     const now = new Date();
     if (filter === "today") {
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return createdAt >= start;
     }
     if (filter === "yesterday") {
-        const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        return y;
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return createdAt >= start && createdAt < end;
     }
-    if (filter === "7") return new Date(Date.now() - 7 * 86400000);
-    if (filter === "14") return new Date(Date.now() - 14 * 86400000);
-    if (filter === "30") return new Date(Date.now() - 30 * 86400000);
-    return null;
+    if (filter === "7") return createdAt >= new Date(Date.now() - 7 * 86_400_000);
+    if (filter === "14") return createdAt >= new Date(Date.now() - 14 * 86_400_000);
+    if (filter === "30") return createdAt >= new Date(Date.now() - 30 * 86_400_000);
+    return true; // "all"
 }
+
+function calcProfit(
+    total: number,
+    prices: { pd_price_1: number; pd_price_2: number; pd_price_3: number; pd_price_4: number },
+): number {
+    if (total >= 5000) return total * prices.pd_price_4;
+    if (total >= 3000) return total * prices.pd_price_3;
+    if (total >= 1000) return total * prices.pd_price_2;
+    return total * prices.pd_price_1;
+}
+
+// ─── Shared styles ────────────────────────────────────────────────────────────
+
+const navBtnStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+    color: "white", borderRadius: "8px", width: "36px", height: "36px",
+    cursor: "pointer", fontSize: "16px", display: "flex",
+    alignItems: "center", justifyContent: "center",
+};
+
+const cardStyle: React.CSSProperties = {
+    background: "white", borderRadius: "14px",
+    border: "1px solid var(--border)", padding: "20px",
+    marginBottom: "20px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
+};
+
+const menuBtnStyle: React.CSSProperties = {
+    background: "var(--bg)", border: "1.5px solid var(--border)",
+    borderRadius: "12px", padding: "12px 8px", cursor: "pointer",
+    display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
+    transition: "all 0.15s", fontFamily: "Sarabun, sans-serif",
+};
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MenuPage() {
     const router = useRouter();
@@ -73,34 +138,28 @@ export default function MenuPage() {
         try {
             const q = query(collection(db, "orders"), orderBy("created_at", "desc"));
             const snapshot = await getDocs(q);
-
-            const from = getDateRange(filter);
             const counts: Record<string, number> = {};
 
             snapshot.docs.forEach((doc) => {
-                const data = doc.data();
-                const createdAt = data.created_at?.toDate?.() as Date | undefined;
+                const data = doc.data() as OrderDoc;
 
-                // กรองตาม filter
-                if (from) {
+                // กรองตามวันที่
+                const createdAt: Date | undefined = data.created_at?.toDate();
+                if (filter !== "all") {
                     if (!createdAt) return;
-                    if (filter === "yesterday") {
-                        const now = new Date();
-                        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-                        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                        if (createdAt < start || createdAt >= end) return;
-                    } else if (createdAt < from) return;
+                    if (!isInRange(createdAt, filter)) return;
                 }
 
-                const quantities = data.quantities as Record<string, number> ?? {};
-                Object.entries(quantities).forEach(([id, qty]) => {
+                // ✅ อ่าน "items" ให้ตรงกับที่ Flutter เขียนไว้ใน Firestore
+                const items = data.items ?? {};
+                Object.entries(items).forEach(([id, qty]) => {
                     counts[id] = (counts[id] ?? 0) + qty;
                 });
             });
 
             setBestSeller(counts);
-        } catch (e) {
-            console.error(e);
+        } catch (e: unknown) {
+            console.error("loadBestSeller error:", e);
         } finally {
             setLoadingChart(false);
         }
@@ -110,25 +169,17 @@ export default function MenuPage() {
         loadBestSeller();
     }, [loadBestSeller]);
 
-    // TOP 12
-    const top12 = Object.entries(bestSeller)
+    const top12: ChartItem[] = Object.entries(bestSeller)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 12)
-        .map(([id, qty]) => {
-            const product = products.find((p) => p.id === id);
-            return { id, name: product?.name ?? "ไม่ทราบ", qty };
-        });
+        .map(([id, qty]) => ({
+            id,
+            name: products.find((p) => p.id === id)?.name ?? "ไม่ทราบ",
+            qty,
+        }));
 
     const totalItems = Object.values(bestSeller).reduce((a, b) => a + b, 0);
-
-    // คำนวณกำไร (ราคาขาย - ต้นทุน สมมติ)
-    const totalProfit = (() => {
-        const t = totalItems;
-        if (t >= 5000) return t * prices.pd_price_4;
-        if (t >= 3000) return t * prices.pd_price_3;
-        if (t >= 1000) return t * prices.pd_price_2;
-        return t * prices.pd_price_1;
-    })();
+    const totalProfit = calcProfit(totalItems, prices);
 
     const fmt = (n: number) => n.toLocaleString("th-TH");
     const fmtMoney = (n: number) => n.toLocaleString("th-TH", { minimumFractionDigits: 2 });
@@ -148,76 +199,28 @@ export default function MenuPage() {
                 alignItems: "center", justifyContent: "space-between",
                 boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
             }}>
-                <button
-                    onClick={() => router.push("/")}
-                    style={{
-                        background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-                        color: "white", borderRadius: "8px", width: "36px", height: "36px",
-                        cursor: "pointer", fontSize: "16px",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                >←</button>
-
                 <span style={{ fontFamily: "Prompt, sans-serif", fontWeight: 600, fontSize: "17px", color: "white" }}>
                     🌾 เมนูหลัก
                 </span>
-
                 <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                        onClick={() => router.push("/best-seller-all")}
-                        title="ดูสถิติทั้งหมด"
-                        style={{
-                            background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-                            color: "white", borderRadius: "8px", width: "36px", height: "36px",
-                            cursor: "pointer", fontSize: "16px",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                        }}
-                    >📈</button>
-                    <button
-                        onClick={handleLogout}
-                        title="ออกจากระบบ"
-                        style={{
-                            background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-                            color: "white", borderRadius: "8px", width: "36px", height: "36px",
-                            cursor: "pointer", fontSize: "16px",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                        }}
-                    >🚪</button>
+                    <button onClick={() => router.push("/best-seller-all")} title="ดูสถิติทั้งหมด" style={navBtnStyle}>📈</button>
+                    <button onClick={handleLogout} title="ออกจากระบบ" style={navBtnStyle}>🚪</button>
                 </div>
             </nav>
 
             <div style={{ maxWidth: "960px", margin: "0 auto", padding: "20px 16px" }}>
 
                 {/* Menu Grid */}
-                <div style={{
-                    background: "white", borderRadius: "14px",
-                    border: "1px solid var(--border)", padding: "16px",
-                    marginBottom: "20px",
-                    boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
-                }}>
-                    <h3 style={{
-                        fontFamily: "Prompt, sans-serif", fontSize: "14px",
-                        color: "var(--text-muted)", marginBottom: "14px", fontWeight: 500,
-                    }}>
+                <div style={cardStyle}>
+                    <h3 style={{ fontFamily: "Prompt, sans-serif", fontSize: "14px", color: "var(--text-muted)", marginBottom: "14px", fontWeight: 500 }}>
                         เมนูทั้งหมด
                     </h3>
-                    <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
-                        gap: "10px",
-                    }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: "10px" }}>
                         {MENU_ITEMS.map((item) => (
                             <button
                                 key={item.path}
                                 onClick={() => router.push(item.path)}
-                                style={{
-                                    background: "var(--bg)", border: "1.5px solid var(--border)",
-                                    borderRadius: "12px", padding: "12px 8px",
-                                    cursor: "pointer", display: "flex",
-                                    flexDirection: "column", alignItems: "center", gap: "6px",
-                                    transition: "all 0.15s",
-                                    fontFamily: "Sarabun, sans-serif",
-                                }}
+                                style={menuBtnStyle}
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.background = "var(--primary-light)";
                                     e.currentTarget.style.borderColor = "var(--primary)";
@@ -239,18 +242,11 @@ export default function MenuPage() {
                 </div>
 
                 {/* Best Seller Chart */}
-                <div style={{
-                    background: "white", borderRadius: "14px",
-                    border: "1px solid var(--border)", padding: "20px",
-                    boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
-                }}>
-                    {/* Chart Header */}
+                <div style={cardStyle}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
-                        <div>
-                            <h3 style={{ fontFamily: "Prompt, sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--brown)", margin: 0 }}>
-                                📊 สินค้าขายดี TOP 12
-                            </h3>
-                        </div>
+                        <h3 style={{ fontFamily: "Prompt, sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--brown)", margin: 0 }}>
+                            📊 สินค้าขายดี TOP 12
+                        </h3>
                         <div style={{ textAlign: "right" }}>
                             <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)", marginBottom: "2px" }}>
                                 รวม: {fmt(totalItems)} ชิ้น
@@ -284,9 +280,10 @@ export default function MenuPage() {
 
                     {/* Chart */}
                     {loadingChart ? (
-                        <div style={{ height: "300px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+                        <div style={{ height: "300px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <div style={{
-                                width: "32px", height: "32px", border: "3px solid var(--border)",
+                                width: "32px", height: "32px",
+                                border: "3px solid var(--border)",
                                 borderTopColor: "var(--primary)", borderRadius: "50%",
                                 animation: "spin 0.8s linear infinite",
                             }} />
@@ -306,15 +303,12 @@ export default function MenuPage() {
                                     angle={-35}
                                     textAnchor="end"
                                     interval={0}
-                                    tickFormatter={(v) => v.length > 8 ? v.slice(0, 8) + "…" : v}
+                                    tickFormatter={(v: string) => v.length > 8 ? `${v.slice(0, 8)}…` : v}
                                 />
                                 <YAxis tick={{ fontSize: 11, fill: "#6b4c2a" }} width={40} />
                                 <Tooltip
                                     formatter={(value: number | undefined) => [`${fmt(value ?? 0)} ชิ้น`, "จำนวน"]}
-                                    contentStyle={{
-                                        fontFamily: "Sarabun, sans-serif", fontSize: "13px",
-                                        borderRadius: "8px", border: "1px solid var(--border)",
-                                    }}
+                                    contentStyle={{ fontFamily: "Sarabun, sans-serif", fontSize: "13px", borderRadius: "8px", border: "1px solid var(--border)" }}
                                 />
                                 <Bar dataKey="qty" radius={[4, 4, 0, 0]}>
                                     {top12.map((_, i) => (
